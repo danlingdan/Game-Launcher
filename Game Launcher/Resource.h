@@ -1,0 +1,70 @@
+﻿//{{NO_DEPENDENCIES}}
+// Microsoft Visual C++ 生成的包含文件。
+// 使用者 Game Launcher.rc
+
+#define IDS_APP_TITLE			103
+
+#define IDR_MAINFRAME			128
+#define IDD_GAMELAUNCHER_DIALOG	102
+#define IDD_ABOUTBOX			103
+#define IDM_ABOUT				104
+#define IDM_EXIT				105
+#define IDI_GAMELAUNCHER			107
+#define IDI_SMALL				108
+#define IDC_GAMELAUNCHER			109
+#define IDC_MYICON				2
+#ifndef IDC_STATIC
+#define IDC_STATIC				-1
+#endif
+
+// 自定义控件ID
+#define ID_TOOLBAR 1001
+#define ID_SEARCH_BOX 1002
+#define ID_SIDEBAR 1003
+#define ID_CONTENT_AREA 1004
+#define ID_STATUSBAR 1005
+#define ID_FIRST_PAGE 1006
+#define ID_PREV_PAGE 1007
+#define ID_NEXT_PAGE 1008
+#define ID_LAST_PAGE 1009
+#define ID_PAGE_NUM 1010
+#define ID_GOTO_PAGE 1011
+#define ID_PAGE_INPUT 1012
+
+// 菜单ID
+#define ID_MENU_GAME 2001
+#define ID_MENU_BOX 2002
+#define ID_MENU_COMMUNITY 2003
+#define ID_MENU_CONFIG 2004
+#define ID_MENU_HELP 2005
+
+// 自定义消息
+#define WM_INIT_DIALOG (WM_USER + 100)
+
+// 控件ID
+#define IDC_GAME_NAME 3000
+#define IDC_RELEASE_YEAR 3001
+#define IDC_PUBLISHER 3002
+#define IDC_LANGUAGE 3003
+#define IDC_CATEGORY 3004
+#define IDC_PLATFORM 3005
+#define IDC_EXECUTABLE_PATH 3006
+#define IDC_BROWSE_EXECUTABLE 3007
+#define IDC_ICON_PATH 3008
+#define IDC_BROWSE_ICON 3009
+
+// 游戏对话框
+#define IDD_DIALOG_GAME            150
+
+// 新对象的下一组默认值
+//
+#ifdef APSTUDIO_INVOKED
+#ifndef APSTUDIO_READONLY_SYMBOLS
+
+#define _APS_NO_MFC					130
+#define _APS_NEXT_RESOURCE_VALUE	129
+#define _APS_NEXT_COMMAND_VALUE		32771
+#define _APS_NEXT_CONTROL_VALUE		1000
+#define _APS_NEXT_SYMED_VALUE		110
+#endif
+#endif
