@@ -497,23 +497,86 @@ void MainWindow::OnSize(int width, int height) {
         // 重新计算菜单项位置
         CalculateMenuItemPositions();
 
-        // ----------- 关键：自适应每页显示数量 -----------
+        // --------- 增强的自适应每页游戏数量计算 ---------
+
+        // 记录调整前的第一个可见游戏索引，用于保持滚动位置
+        int oldStartIndex = m_currentPage * m_gamesPerPage;
+        int oldGamesPerPage = m_gamesPerPage;
+
         // 内容区尺寸
-        int contentWidth = width - SIDEBAR_WIDTH;
-        int contentHeight = height - TOPBAR_HEIGHT - CATEGORY_HEIGHT - STATUSBAR_HEIGHT;
+        int contentWidth = width - SIDEBAR_WIDTH - 20; // 减去右侧边距
+        int contentHeight = height - TOPBAR_HEIGHT - CATEGORY_HEIGHT - STATUSBAR_HEIGHT - 30; // 减去底部提示区域高度
 
-        // 卡片和间距
-        int cardWidth = 200, cardHeight = 280;
-        int gapX = 20, gapY = 20;
+        // 获取DPI比例以适应高分屏
+        UINT dpiX = 96, dpiY = 96;
+        GetMonitorDpiForWindow(m_hwnd, dpiX, dpiY);
+        float dpiScale = dpiX / 96.0f;
 
-        // 计算列数和行数
-        int columns = std::max(1, (contentWidth - gapX) / (cardWidth + gapX));
-        int rows = std::max(1, (contentHeight - gapY) / (cardHeight + gapY));
+        // 卡片尺寸和间距 - 可选择性缩放以适应不同分辨率
+        int cardWidth = static_cast<int>(180 * dpiScale);     // 从200改为180
+        int cardHeight = static_cast<int>(250 * dpiScale);    // 从280改为250
+        int gapX = static_cast<int>(15 * dpiScale);          // 可选择减小间距
+        int gapY = static_cast<int>(15 * dpiScale);
 
-        m_gamesPerPage = columns * rows;
+        // 确保卡片至少有最小尺寸
+        cardWidth = std::max(140, std::min(220, cardWidth));  // 调整最小最大限制
+        cardHeight = std::max(200, std::min(300, cardHeight));
 
-        // 强制刷新游戏显示
-        RefreshGameDisplay();
+        // 根据内容区域精确计算能够容纳的列数和行数
+        int availableWidth = contentWidth - gapX; // 考虑左右边距
+        int columns = std::max(1, availableWidth / (cardWidth + gapX));
+
+        // 再次检查计算出的宽度是否适合内容区域
+        int actualWidth = columns * (cardWidth + gapX) + gapX;
+        if (actualWidth > contentWidth && columns > 1) {
+            columns--;
+        }
+
+        int availableHeight = contentHeight - gapY; // 考虑上下边距
+        int rows = std::max(1, availableHeight / (cardHeight + gapY));
+
+        // 再次检查计算出的高度是否适合内容区域
+        int actualHeight = rows * (cardHeight + gapY) + gapY;
+        if (actualHeight > contentHeight && rows > 1) {
+            rows--;
+        }
+
+        // 更新每页游戏数量
+        int newGamesPerPage = columns * rows;
+
+        // 日志输出计算结果
+        WCHAR debugStr[256];
+        swprintf_s(debugStr, L"自适应计算: 内容区 %dx%d, 卡片 %dx%d, 列数=%d, 行数=%d, 每页=%d 款游戏\n",
+            contentWidth, contentHeight, cardWidth, cardHeight, columns, rows, newGamesPerPage);
+        OutputDebugString(debugStr);
+
+        // 如果计算结果有变化才更新
+        if (newGamesPerPage != m_gamesPerPage) {
+            m_gamesPerPage = newGamesPerPage;
+
+            // 计算新的当前页，尽量保持原来查看的游戏可见
+            if (m_currentGames.size() > 0) {
+                // 计算新的页码，使得之前的第一个游戏尽可能保持可见
+                m_currentPage = oldStartIndex / m_gamesPerPage;
+
+                // 确保当前页码在有效范围内
+                int totalPages = (m_currentGames.size() + m_gamesPerPage - 1) / m_gamesPerPage;
+                if (totalPages == 0) totalPages = 1;
+                if (m_currentPage >= totalPages) m_currentPage = totalPages - 1;
+                if (m_currentPage < 0) m_currentPage = 0;
+
+                // 记录页码变更日志
+                swprintf_s(debugStr, L"页码调整: 从 %d/%d 变为 %d/%d\n",
+                    oldStartIndex / oldGamesPerPage + 1,
+                    (m_currentGames.size() + oldGamesPerPage - 1) / oldGamesPerPage,
+                    m_currentPage + 1,
+                    (m_currentGames.size() + m_gamesPerPage - 1) / m_gamesPerPage);
+                OutputDebugString(debugStr);
+            }
+
+            // 强制刷新游戏显示
+            RefreshGameDisplay();
+        }
 
         // 强制重绘
         InvalidateRect(m_hwnd, NULL, TRUE);
@@ -1480,10 +1543,10 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             }
             else {
                 // 游戏卡片和间距
-                int cardWidth = 200;
-                int cardHeight = 280;
-                int gapX = 20;
-                int gapY = 20;
+                int cardWidth = 180;    // 从200改为180
+                int cardHeight = 250;   // 从280改为250
+                int gapX = 15;          // 可选择减小间距
+                int gapY = 15;          // 可选择减小间距
                 int startX = 10;
                 int startY = 10;
 
@@ -1586,10 +1649,10 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             int y = HIWORD(lParam);
 
             // 遍历所有游戏卡片区域，检查点击位置
-            int cardWidth = 200;
-            int cardHeight = 280;
-            int gapX = 20;
-            int gapY = 20;
+            int cardWidth = 180;    // 从200改为180
+            int cardHeight = 250;   // 从280改为250
+            int gapX = 15;
+            int gapY = 15;
             int startX = 10;
             int startY = 10;
             int columns = 3;
