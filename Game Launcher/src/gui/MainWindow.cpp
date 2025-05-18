@@ -130,41 +130,35 @@ void MainWindow::OnCreate(HWND hwnd) {
     int btnY = clientHeight - STATUSBAR_HEIGHT / 2 - btnHeight / 2;
     int startX = (clientWidth - 5 * btnWidth - 40) / 2; // 40 是页码输入框宽度
 
-    // 创建首页按钮
     CreateWindowEx(0, _T("BUTTON"), _T("首页"),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         startX, btnY, btnWidth, btnHeight,
-        hwnd, (HMENU)ID_FIRST_PAGE, hInstance, NULL);
+        hwnd, (HMENU)PAGING_BTN_FIRST, hInstance, NULL);
 
-    // 创建上一页按钮
     CreateWindowEx(0, _T("BUTTON"), _T("上一页"),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         startX + btnWidth, btnY, btnWidth, btnHeight,
-        hwnd, (HMENU)ID_PREV_PAGE, hInstance, NULL);
+        hwnd, (HMENU)PAGING_BTN_PREV, hInstance, NULL);
 
-    // 创建页码输入框
     m_pageInputHwnd = CreateWindowEx(0, _T("EDIT"), _T("1"),
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER | ES_CENTER,
         startX + 2 * btnWidth, btnY, 40, btnHeight,
-        hwnd, (HMENU)ID_PAGE_INPUT, hInstance, NULL);
+        hwnd, (HMENU)PAGING_EDIT_PAGE, hInstance, NULL);
 
-    // 创建下一页按钮
     CreateWindowEx(0, _T("BUTTON"), _T("下一页"),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         startX + 2 * btnWidth + 40, btnY, btnWidth, btnHeight,
-        hwnd, (HMENU)ID_NEXT_PAGE, hInstance, NULL);
+        hwnd, (HMENU)PAGING_BTN_NEXT, hInstance, NULL);
 
-    // 创建尾页按钮
     CreateWindowEx(0, _T("BUTTON"), _T("尾页"),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         startX + 3 * btnWidth + 40, btnY, btnWidth, btnHeight,
-        hwnd, (HMENU)ID_LAST_PAGE, hInstance, NULL);
+        hwnd, (HMENU)PAGING_BTN_LAST, hInstance, NULL);
 
-    // 创建跳转按钮
     CreateWindowEx(0, _T("BUTTON"), _T("跳转"),
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         startX + 4 * btnWidth + 40, btnY, btnWidth, btnHeight,
-        hwnd, (HMENU)ID_GOTO_PAGE, hInstance, NULL);
+        hwnd, (HMENU)PAGING_BTN_GOTO, hInstance, NULL);
 
     // 添加侧边栏分类按钮
     AddSidebarButtons();
@@ -202,6 +196,8 @@ void MainWindow::CalculateMenuItemPositions() {
 }
 
 void MainWindow::AddSidebarButtons() {
+    OutputDebugString((L"AddSidebarButtons(): 当前分类=" + (m_currentCategory.empty() ? L"[空]" : m_currentCategory) + L"\n").c_str());
+
     HINSTANCE hInstance = GetModuleHandle(nullptr);
     int buttonHeight = 40;
     int yPos = 0;
@@ -224,6 +220,7 @@ void MainWindow::AddSidebarButtons() {
             (i > 0 && category == m_currentCategory)) {
             std::wstring selectedText = L"● " + category;
             SendMessage(hButton, WM_SETTEXT, 0, (LPARAM)selectedText.c_str());
+            OutputDebugString((L"AddSidebarButtons(): 标记高亮分类 '" + category + L"'\n").c_str());
         }
 
         yPos += buttonHeight;
@@ -435,13 +432,13 @@ void MainWindow::OnSize(int width, int height) {
         int btnY = height - STATUSBAR_HEIGHT / 2 - btnHeight / 2; 
         int startX = (width - 5 * btnWidth - 40) / 2; // 40 是页码输入框宽度
 
-        // 重新定位分页按钮
-        MoveWindow(GetDlgItem(m_hwnd, ID_FIRST_PAGE), startX, btnY, btnWidth, btnHeight, TRUE);
-        MoveWindow(GetDlgItem(m_hwnd, ID_PREV_PAGE), startX + btnWidth, btnY, btnWidth, btnHeight, TRUE);
+        // 定位分页按钮
+        MoveWindow(GetDlgItem(m_hwnd, PAGING_BTN_FIRST), startX, btnY, btnWidth, btnHeight, TRUE);
+        MoveWindow(GetDlgItem(m_hwnd, PAGING_BTN_PREV), startX + btnWidth, btnY, btnWidth, btnHeight, TRUE);
         MoveWindow(m_pageInputHwnd, startX + 2 * btnWidth, btnY, 40, btnHeight, TRUE);
-        MoveWindow(GetDlgItem(m_hwnd, ID_NEXT_PAGE), startX + 2 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
-        MoveWindow(GetDlgItem(m_hwnd, ID_LAST_PAGE), startX + 3 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
-        MoveWindow(GetDlgItem(m_hwnd, ID_GOTO_PAGE), startX + 4 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
+        MoveWindow(GetDlgItem(m_hwnd, PAGING_BTN_NEXT), startX + 2 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
+        MoveWindow(GetDlgItem(m_hwnd, PAGING_BTN_LAST), startX + 3 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
+        MoveWindow(GetDlgItem(m_hwnd, PAGING_BTN_GOTO), startX + 4 * btnWidth + 40, btnY, btnWidth, btnHeight, TRUE);
 
         // 重新计算菜单项位置
         CalculateMenuItemPositions();
@@ -590,7 +587,7 @@ void MainWindow::RefreshGameDisplay(const std::vector<Game*>& games) {
     // 更新页码输入框
     if (m_pageInputHwnd) {
         TCHAR pageText[16];
-        _stprintf_s(pageText, _T("%d"), m_currentPage + 1);  // 页码显示从1开始
+        _stprintf_s(pageText, _T("%d"), m_currentPage + 1);
         SetWindowText(m_pageInputHwnd, pageText);
     }
 
@@ -620,8 +617,12 @@ void MainWindow::RefreshGameDisplay(const std::vector<Game*>& games) {
 
 // 重载无参数版本，刷新游戏显示
 void MainWindow::RefreshGameDisplay() {
+    OutputDebugString((L"RefreshGameDisplay(): 当前分类=" + (m_currentCategory.empty() ? L"[空]" : m_currentCategory) +
+        L", 当前页=" + std::to_wstring(m_currentPage) + L"\n").c_str());
+
     if (m_currentCategory.empty() || m_currentCategory == L"全部游戏") {
         // 显示全部游戏
+        OutputDebugString(L"RefreshGameDisplay(): 正在显示全部游戏\n");
         std::vector<Game*> allGames;
         allGames.reserve(m_gameCollection.GetGameCount());
 
@@ -632,6 +633,7 @@ void MainWindow::RefreshGameDisplay() {
     }
     else {
         // 显示当前分类的游戏
+        OutputDebugString((L"RefreshGameDisplay(): 正在显示分类 '" + m_currentCategory + L"' 的游戏\n").c_str());
         std::vector<Game*> games = m_gameCollection.FindGamesByCategory(m_currentCategory);
         RefreshGameDisplay(games);
     }
@@ -1017,83 +1019,66 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
         if (pThis) {
             int wmId = LOWORD(wParam);
 
-            // 1. 侧边栏分类按钮（ID_SIDEBAR + 1 ~ ID_SIDEBAR + 分类数）
+            // 1. 侧边栏分类按钮
             if (wmId >= ID_SIDEBAR + 1 && wmId < ID_SIDEBAR + 1 + (int)pThis->m_sidebarCategories.size()) {
                 int catIndex = wmId - (ID_SIDEBAR + 1);
-
-                // 更新选中状态
                 if (catIndex == 0) {
-                    // 全部游戏
                     pThis->m_currentCategory.clear();
                 }
                 else {
-                    // 选择特定分类
                     pThis->m_currentCategory = pThis->m_sidebarCategories[catIndex];
                 }
-
-                // 切换分类时重置为第一页
-                pThis->m_currentPage = 0; // 添加此行以重置页码
-
-                // 刷新界面显示
+                pThis->m_currentPage = 0;
                 pThis->RefreshGameDisplay();
-                pThis->RefreshSidebar(); // 更新侧边栏高亮状态
+                pThis->RefreshSidebar();
                 break;
             }
 
             // 2. 顶部菜单
             switch (wmId) {
             case ID_MENU_GAME:
-            {
                 pThis->OnAddGame();
-            }
                 break;
-
             case ID_MENU_BOX:
             case ID_MENU_COMMUNITY:
             case ID_MENU_CONFIG:
                 MessageBox(pThis->m_hwnd, L"该功能暂未实现", L"提示", MB_OK | MB_ICONINFORMATION);
                 break;
             case ID_MENU_HELP:
-            {
                 pThis->ShowHelpDialog();
-            }
                 break;
 
                 // 3. 分页按钮
-            case ID_FIRST_PAGE:
+            case PAGING_BTN_FIRST:
                 pThis->m_currentPage = 0;
-                pThis->m_currentCategory.clear(); // 重置为全部游戏
                 pThis->RefreshGameDisplay();
-                pThis->RefreshSidebar(); // 更新侧边栏高亮状态
                 break;
-            case ID_PREV_PAGE:
+            case PAGING_BTN_PREV:
                 if (pThis->m_currentPage > 0) {
                     pThis->m_currentPage--;
-                    pThis->RefreshGameDisplay();  
+                    pThis->RefreshGameDisplay();
                 }
                 break;
-            case ID_NEXT_PAGE:
+            case PAGING_BTN_NEXT:
                 if (pThis->m_currentPage < pThis->m_totalPages - 1) {
                     pThis->m_currentPage++;
-                    pThis->RefreshGameDisplay();  
+                    pThis->RefreshGameDisplay();
                 }
                 break;
-            case ID_LAST_PAGE:
+            case PAGING_BTN_LAST:
                 pThis->m_currentPage = pThis->m_totalPages - 1;
-                pThis->RefreshGameDisplay();  
+                pThis->RefreshGameDisplay();
                 break;
-            case ID_GOTO_PAGE:
-            {
+            case PAGING_BTN_GOTO: {
                 TCHAR pageText[16] = { 0 };
                 GetWindowText(pThis->m_pageInputHwnd, pageText, 16);
                 int page = _wtoi(pageText);
                 if (page >= 1 && page <= pThis->m_totalPages) {
-                    pThis->m_currentPage = page - 1;  // 页码从0开始计算
-                    pThis->RefreshGameDisplay(); 
+                    pThis->m_currentPage = page - 1;
+                    pThis->RefreshGameDisplay();
                 }
                 else {
                     MessageBox(pThis->m_hwnd, L"请输入有效页码", L"提示", MB_OK | MB_ICONINFORMATION);
-                    // 恢复显示当前页码
                     _stprintf_s(pageText, _T("%d"), pThis->m_currentPage + 1);
                     SetWindowText(pThis->m_pageInputHwnd, pageText);
                 }
@@ -1102,7 +1087,6 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
             default:
                 return DefWindowProc(hwnd, msg, wParam, lParam);
             }
-            break;
         }
         break;
     default:
