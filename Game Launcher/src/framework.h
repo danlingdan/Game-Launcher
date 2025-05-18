@@ -14,6 +14,7 @@
 
 #include "../targetver.h"
 // Windows 头文件
+#define NOMINMAX
 #include <windows.h>
 #pragma comment(lib, "Version.lib")
 #include <CommCtrl.h>

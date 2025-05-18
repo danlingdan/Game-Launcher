@@ -445,7 +445,7 @@ void MainWindow::OnSize(int width, int height) {
         // 调整底部分页按钮
         int btnWidth = 80;
         int btnHeight = 25;
-        int btnY = height - STATUSBAR_HEIGHT / 2 - btnHeight / 2; 
+        int btnY = height - STATUSBAR_HEIGHT / 2 - btnHeight / 2;
         int startX = (width - 5 * btnWidth - 40) / 2; // 40 是页码输入框宽度
 
         // 定位分页按钮
@@ -458,6 +458,24 @@ void MainWindow::OnSize(int width, int height) {
 
         // 重新计算菜单项位置
         CalculateMenuItemPositions();
+
+        // ----------- 关键：自适应每页显示数量 -----------
+        // 内容区尺寸
+        int contentWidth = width - SIDEBAR_WIDTH;
+        int contentHeight = height - TOPBAR_HEIGHT - CATEGORY_HEIGHT - STATUSBAR_HEIGHT;
+
+        // 卡片和间距
+        int cardWidth = 200, cardHeight = 280;
+        int gapX = 20, gapY = 20;
+
+        // 计算列数和行数
+        int columns = std::max(1, (contentWidth - gapX) / (cardWidth + gapX));
+        int rows = std::max(1, (contentHeight - gapY) / (cardHeight + gapY));
+
+        m_gamesPerPage = columns * rows;
+
+        // 强制刷新游戏显示
+        RefreshGameDisplay();
 
         // 强制重绘
         InvalidateRect(m_hwnd, NULL, TRUE);
@@ -813,7 +831,7 @@ void MainWindow::DrawGameCard(HDC hdc, const Game* game, int x, int y, int width
 
     if (hIcon && hIcon != (HICON)1) {
         // 计算图标在区域中居中的位置
-        int iconSize = min(64, min(width - 20, iconHeight - 20));
+        int iconSize = std::min(64, std::min(width - 20, iconHeight - 20));
         int iconX = x + (width - iconSize) / 2;
         int iconY = y + (iconHeight - iconSize) / 2;
 
@@ -1127,7 +1145,6 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
     case WM_ERASEBKGND:
         // 阻止擦除背景以减少闪烁
         return 1;
-
     case WM_MOUSEWHEEL:
     {
         if (!pThis) break;
@@ -1157,6 +1174,7 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
     }
 
     case WM_KEYDOWN:
+    {
         if (pThis) {
             switch (wParam) {
             case VK_PRIOR: // Page Up键
@@ -1184,9 +1202,10 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
                 return 0;
             }
         }
+    }
         break;
-
     case WM_PAINT:
+    {
         if (pThis) {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
@@ -1210,26 +1229,29 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             // 清空之前的删除按钮信息
             pThis->m_deleteButtons.clear();
 
-            // 3列布局的游戏卡片
+            // 卡片和间距
             int cardWidth = 200;
             int cardHeight = 280;
             int gapX = 20;
             int gapY = 20;
             int startX = 10;
             int startY = 10;
-            int columns = 3;
+
+            // 关键：根据内容区宽度动态计算列数
+            int columns = std::max(1, (width - gapX) / (cardWidth + gapX));
 
             // 使用当前筛选后的游戏列表
             const std::vector<Game*>& gamesToShow = pThis->m_currentGames;
 
             // 计算当前页的起始和结束索引
             int startIndex = pThis->m_currentPage * pThis->m_gamesPerPage;
-            int endIndex = min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
+            int endIndex = std::min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
 
             // 绘制当前页的游戏
             for (int i = startIndex; i < endIndex; i++) {
-                int col = (i - startIndex) % columns;
-                int row = (i - startIndex) / columns;
+                int idx = i - startIndex;
+                int col = idx % columns;
+                int row = idx / columns;
                 int x = startX + col * (cardWidth + gapX);
                 int y = startY + row * (cardHeight + gapY);
 
@@ -1281,8 +1303,8 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             EndPaint(hwnd, &ps);
             return 0;
         }
+    }
         break;
-
     case WM_LBUTTONDOWN:
     {
         if (pThis) {
@@ -1314,7 +1336,6 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
         }
     }
     break;
-
     case WM_RBUTTONDOWN:
     {
         if (pThis) {
@@ -1333,7 +1354,7 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
 
             const std::vector<Game*>& gamesToShow = pThis->m_currentGames;
             int startIndex = pThis->m_currentPage * pThis->m_gamesPerPage;
-            int endIndex = min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
+            int endIndex = std::min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
 
             for (int i = startIndex; i < endIndex; i++) {
                 int col = (i - startIndex) % columns;
@@ -1366,8 +1387,8 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
         }
     }
     break;
-
     case WM_COMMAND:
+    {
         // 处理右键菜单命令
         if (pThis) {
             int gameIndex = (int)(INT_PTR)GetProp(hwnd, L"SelectedGameIndex");
@@ -1397,6 +1418,7 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             }
             return 0;
         }
+    }
         break;
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
