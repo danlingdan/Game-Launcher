@@ -275,7 +275,7 @@ void MainWindow::OnPaint() {
 
     SetTextColor(memDC, RGB(180, 180, 180));  // 灰色版本号
     HFONT tempFont = (HFONT)SelectObject(memDC, m_hMenuFont);
-    TextOut(memDC, 140, (TOPBAR_HEIGHT - 18) / 2, L"Ver 0.1", 9);
+    TextOut(memDC, 140, (TOPBAR_HEIGHT - 18) / 2, L"Ver 0.1", wcslen(L"Ver 0.1"));
     SelectObject(memDC, oldFont);
 
     // 绘制菜单项
@@ -334,22 +334,29 @@ void MainWindow::OnPaint() {
 
         switch (btn.id) {
         case 3001: // 缩略图视图 - 绘制小方块
+        {
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX + iconSize / 2, iconY + iconSize / 2);
+        }
             break;
         case 3002: // 列表视图 - 绘制三条水平线
+        {
             for (int i = -3; i <= 3; i += 3) {
                 MoveToEx(memDC, iconX - iconSize / 2, iconY + i, NULL);
                 LineTo(memDC, iconX + iconSize / 2, iconY + i);
             }
+        }
             break;
         case 3003: // 详情视图
+        {
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX + iconSize / 2, iconY + iconSize / 2);
             MoveToEx(memDC, iconX - iconSize / 4, iconY - iconSize / 4, NULL);
             LineTo(memDC, iconX + iconSize / 4, iconY - iconSize / 4);
+        }
             break;
         case 3004: // 网格视图 - 绘制2x2网格
+        {
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX, iconY);
             Rectangle(memDC, iconX, iconY - iconSize / 2,
@@ -358,30 +365,39 @@ void MainWindow::OnPaint() {
                 iconX, iconY + iconSize / 2);
             Rectangle(memDC, iconX, iconY,
                 iconX + iconSize / 2, iconY + iconSize / 2);
+        }
             break;
         case 3005: // 大网格视图
+        {
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX + iconSize / 2, iconY + iconSize / 2);
             MoveToEx(memDC, iconX, iconY - iconSize / 2, NULL);
             LineTo(memDC, iconX, iconY + iconSize / 2);
             MoveToEx(memDC, iconX - iconSize / 2, iconY, NULL);
             LineTo(memDC, iconX + iconSize / 2, iconY);
+        }
             break;
         case 3006: // 其他视图
+        {
             Ellipse(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX + iconSize / 2, iconY + iconSize / 2);
+        }
             break;
         case 3007: // 文件视图
+        {
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 2,
                 iconX + iconSize / 2, iconY - iconSize / 4);
             Rectangle(memDC, iconX - iconSize / 2, iconY - iconSize / 4,
                 iconX + iconSize / 2, iconY + iconSize / 2);
+        }
             break;
         case 3008: // 添加视图
+        {
             MoveToEx(memDC, iconX - iconSize / 2, iconY, NULL);
             LineTo(memDC, iconX + iconSize / 2, iconY);
             MoveToEx(memDC, iconX, iconY - iconSize / 2, NULL);
             LineTo(memDC, iconX, iconY + iconSize / 2);
+        }
             break;
         }
     }

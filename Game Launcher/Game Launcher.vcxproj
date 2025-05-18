@@ -132,7 +132,7 @@
     <ClInclude Include="src\gui\GUIHelpers.h" />
     <ClInclude Include="src\gui\MainWindow.h" />
     <ClInclude Include="src\persistence\Persistence.h" />
-    <ClInclude Include="src\targetver.h" />
+    <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Game Launcher.rc" />
