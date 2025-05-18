@@ -1,6 +1,7 @@
 #pragma once
 #include "../framework.h"
 #include "Game.h"
+#include "../tools/StringUtils.h"
 
 // 游戏集合类 - 管理所有游戏
 class GameCollection {

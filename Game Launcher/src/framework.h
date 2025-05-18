@@ -21,7 +21,9 @@
 #pragma comment(lib, "comctl32.lib")
 #include <commdlg.h>
 
-
+#include <nlohmann/json.hpp>
+#include <codecvt>
+#include <locale>
 
 // C 运行时头文件
 #include <stdlib.h>

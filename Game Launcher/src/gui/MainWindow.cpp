@@ -7,7 +7,8 @@
 MainWindow::MainWindow() : m_hwnd(nullptr), m_sidebarHwnd(nullptr),
 m_toolbarHwnd(nullptr), m_contentHwnd(nullptr), m_searchHwnd(nullptr),
 m_pageInputHwnd(nullptr), m_hMenu(nullptr), m_hoverMenuItem(-1),
-m_currentPage(0), m_totalPages(1), m_gamesPerPage(8) {
+m_currentPage(0), m_totalPages(1), m_gamesPerPage(8),
+m_themeComboHwnd(nullptr), m_dataDirEditHwnd(nullptr), m_browseBtnHwnd(nullptr), m_saveSettingsBtnHwnd(nullptr) {
     // 初始化顶部菜单项
     m_menuItems = {
         { L"游戏", {0}, ID_MENU_GAME, false },
@@ -37,7 +38,10 @@ m_currentPage(0), m_totalPages(1), m_gamesPerPage(8) {
 
     memset(&m_menuFont, 0, sizeof(LOGFONT));
     m_menuFont.lfHeight = 18;
-    wcscpy_s(m_menuFont.lfFaceName, LF_FACESIZE, L"Microsoft YaHei"); 
+    wcscpy_s(m_menuFont.lfFaceName, LF_FACESIZE, L"Microsoft YaHei");
+
+    // 加载设置
+    InitializeSettings();
 
     // 加载游戏集合
     m_gameCollection.LoadGames();
@@ -46,6 +50,17 @@ m_currentPage(0), m_totalPages(1), m_gamesPerPage(8) {
 MainWindow::~MainWindow() {
     if (m_hTitleFont) DeleteObject(m_hTitleFont);
     if (m_hMenuFont) DeleteObject(m_hMenuFont);
+}
+
+void MainWindow::InitializeSettings() {
+    bool loadResult = m_settings.Load();
+    if (!loadResult) {
+        m_settings = Setting();
+        // 使用默认主题
+    }
+    AppTheme currentTheme = m_settings.GetTheme();
+    ThemeManager::GetInstance().Initialize(currentTheme);
+    ThemeManager::GetInstance().SwitchTheme(currentTheme);
 }
 
 bool MainWindow::Create(HINSTANCE hInstance, int nCmdShow) {
@@ -168,6 +183,23 @@ void MainWindow::OnCreate(HWND hwnd) {
 
     // 初始显示所有游戏
     RefreshGameDisplay();
+
+    // 添加主题变更监听器
+    ThemeManager::GetInstance().AddThemeChangedListener(
+        [this](AppTheme theme) {
+            // 强制整个窗口重绘
+            InvalidateRect(m_hwnd, NULL, TRUE);
+
+            // 重绘所有子窗口
+            EnumChildWindows(m_hwnd, [](HWND hwnd, LPARAM lParam) -> BOOL {
+                InvalidateRect(hwnd, NULL, TRUE);
+                return TRUE;
+                }, 0);
+
+            // 更新窗口
+            UpdateWindow(m_hwnd);
+        }
+    );
 }
 
 void MainWindow::CalculateMenuItemPositions() {
@@ -258,34 +290,37 @@ void MainWindow::OnPaint() {
     HBITMAP memBitmap = CreateCompatibleBitmap(hdc, width, height);
     HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-    // 绘制顶部菜单栏背景 (深蓝色)
+    // 获取当前主题颜色
+    const ThemeColors& colors = ThemeManager::GetInstance().GetColors();
+
+    // 绘制顶部菜单栏背景
     RECT rcTopBar = { 0, 0, width, TOPBAR_HEIGHT };
-    HBRUSH hBrushTopBar = CreateSolidBrush(RGB(30, 35, 70));
+    HBRUSH hBrushTopBar = CreateSolidBrush(colors.topBarBackground);
     FillRect(memDC, &rcTopBar, hBrushTopBar);
     DeleteObject(hBrushTopBar);
 
     // 绘制LOGO
     SetBkMode(memDC, TRANSPARENT);
-    SetTextColor(memDC, RGB(255, 200, 0));  // 金黄色LOGO
+    SetTextColor(memDC, RGB(255, 200, 0));  // 金黄色LOGO保持不变
     HFONT oldFont = (HFONT)SelectObject(memDC, m_hTitleFont);
     TextOut(memDC, 20, (TOPBAR_HEIGHT - 22) / 2, L"DG", 2);
 
-    SetTextColor(memDC, RGB(0, 150, 220));  // 蓝色Player
+    SetTextColor(memDC, RGB(0, 150, 220));  // 蓝色Player保持不变
     TextOut(memDC, 60, (TOPBAR_HEIGHT - 22) / 2, L"player", 6);
 
-    SetTextColor(memDC, RGB(180, 180, 180));  // 灰色版本号
+    SetTextColor(memDC, RGB(180, 180, 180));  // 灰色版本号保持不变
     HFONT tempFont = (HFONT)SelectObject(memDC, m_hMenuFont);
-    TextOut(memDC, 140, (TOPBAR_HEIGHT - 18) / 2, L"Ver 0.1", wcslen(L"Ver 0.1"));
+    TextOut(memDC, 140, (TOPBAR_HEIGHT - 18) / 2, L"Ver 0.2", wcslen(L"Ver 0.2"));
     SelectObject(memDC, oldFont);
 
     // 绘制菜单项
     SelectObject(memDC, m_hMenuFont);
-    SetTextColor(memDC, RGB(220, 220, 220));  // 亮灰色菜单文字
+    SetTextColor(memDC, colors.menuText);
 
     for (const auto& item : m_menuItems) {
         // 如果鼠标悬停在菜单项上，绘制高亮背景
         if (item.isHovered) {
-            HBRUSH hBrushHover = CreateSolidBrush(RGB(50, 60, 100));
+            HBRUSH hBrushHover = CreateSolidBrush(colors.buttonHoverBackground);
             FillRect(memDC, &item.rect, hBrushHover);
             DeleteObject(hBrushHover);
         }
@@ -295,27 +330,27 @@ void MainWindow::OnPaint() {
         DrawText(memDC, item.text.c_str(), -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
     }
 
-    // 绘制游戏分类工具栏背景 (浅蓝灰色)
+    // 绘制游戏分类工具栏背景
     RECT rcCategoryBar = { 0, TOPBAR_HEIGHT, width, TOPBAR_HEIGHT + CATEGORY_HEIGHT };
-    HBRUSH hBrushCategoryBar = CreateSolidBrush(RGB(240, 240, 245));
+    HBRUSH hBrushCategoryBar = CreateSolidBrush(colors.categoryBarBackground);
     FillRect(memDC, &rcCategoryBar, hBrushCategoryBar);
     DeleteObject(hBrushCategoryBar);
 
     // 绘制"游戏分类"文字
-    SetTextColor(memDC, RGB(50, 50, 50));
+    SetTextColor(memDC, colors.primaryText);
     TextOut(memDC, 20, TOPBAR_HEIGHT + 10, L"游戏分类", 4);
 
     // 绘制工具栏按钮
     for (const auto& btn : m_toolbarButtons) {
         // 如果鼠标悬停在按钮上，绘制高亮背景
         if (btn.isHovered) {
-            HBRUSH hBrushBtnHover = CreateSolidBrush(RGB(200, 210, 230));
+            HBRUSH hBrushBtnHover = CreateSolidBrush(colors.buttonHoverBackground);
             FillRect(memDC, &btn.rect, hBrushBtnHover);
             DeleteObject(hBrushBtnHover);
         }
         else {
             // 绘制普通背景
-            HBRUSH hBrushBtn = CreateSolidBrush(RGB(230, 230, 235));
+            HBRUSH hBrushBtn = CreateSolidBrush(colors.buttonBackground);
             FillRect(memDC, &btn.rect, hBrushBtn);
             DeleteObject(hBrushBtn);
         }
@@ -327,10 +362,13 @@ void MainWindow::OnPaint() {
         SelectObject(memDC, hOldPen);
         DeleteObject(hPen);
 
-        // 绘制简单图形图标
+        // 按钮图标绘制代码保持不变
         int iconX = (btn.rect.left + btn.rect.right) / 2;
         int iconY = (btn.rect.top + btn.rect.bottom) / 2;
         int iconSize = 10;
+
+        // 使用主题颜色绘制图标
+        SetTextColor(memDC, colors.buttonText);
 
         switch (btn.id) {
         case 3001: // 缩略图视图 - 绘制小方块
@@ -404,11 +442,11 @@ void MainWindow::OnPaint() {
 
     // 绘制"Go"按钮
     RECT goButtonRect = { width - 70, TOPBAR_HEIGHT + 5, width - 10, TOPBAR_HEIGHT + CATEGORY_HEIGHT - 5 };
-    HBRUSH hBrushGoBtn = CreateSolidBrush(RGB(50, 70, 100));
+    HBRUSH hBrushGoBtn = CreateSolidBrush(colors.topBarBackground); // 使用主题颜色
     FillRect(memDC, &goButtonRect, hBrushGoBtn);
     DeleteObject(hBrushGoBtn);
 
-    SetTextColor(memDC, RGB(255, 255, 255));
+    SetTextColor(memDC, RGB(255, 255, 255)); // Go按钮文字保持白色
     DrawText(memDC, L"Go", -1, &goButtonRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     // 绘制底部状态栏
@@ -518,13 +556,15 @@ void MainWindow::OnLButtonDown(int x, int y) {
     // 检查菜单项点击
     for (const auto& item : m_menuItems) {
         if (PtInRect(&item.rect, { x, y })) {
-            // 处理菜单点击事件
             if (item.id == ID_MENU_GAME) {
-                OnAddGame();
+                ShowGameListPage(); // 切回游戏列表
+                handled = true;
+            }
+            else if (item.id == ID_MENU_CONFIG) {
+                ShowSettingsPage(); // 显示设置
                 handled = true;
             }
             else if (item.id == ID_MENU_HELP) {
-                // 调用帮助对话框
                 ShowHelpDialog();
                 handled = true;
             }
@@ -597,6 +637,199 @@ void MainWindow::OnDeleteGame(int gameIndex) {
             MessageBox(m_hwnd, L"删除游戏失败", L"错误", MB_OK | MB_ICONERROR);
         }
     }
+}
+
+void MainWindow::ShowSettingsPage() {
+    m_currentPageType = ContentPage::Settings;
+
+    // 删除之前的控件
+    if (m_themeComboHwnd) DestroyWindow(m_themeComboHwnd);
+    if (m_dataDirEditHwnd) DestroyWindow(m_dataDirEditHwnd);
+    if (m_browseBtnHwnd) DestroyWindow(m_browseBtnHwnd);
+    if (m_saveSettingsBtnHwnd) DestroyWindow(m_saveSettingsBtnHwnd);
+
+    // 获取内容区域尺寸
+    RECT rcContent;
+    GetClientRect(m_contentHwnd, &rcContent);
+    int width = rcContent.right - rcContent.left;
+
+    // 创建控件
+    HINSTANCE hInst = GetModuleHandle(NULL);
+
+    // 标题和说明用绘制方式显示，在DrawSettingsPage中处理
+
+    // 主题选择控件
+    m_themeLabelHwnd = CreateWindowEx(0, L"STATIC", L"应用主题：",
+        WS_CHILD | WS_VISIBLE,
+        100, 100, 100, 24,
+        m_contentHwnd, (HMENU)4001, hInst, NULL);
+
+    m_themeComboHwnd = CreateWindowEx(0, L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        210, 100, 150, 200,
+        m_contentHwnd, (HMENU)4002, hInst, NULL);
+
+    // 添加主题选项
+    SendMessage(m_themeComboHwnd, CB_ADDSTRING, 0, (LPARAM)L"浅色主题");
+    SendMessage(m_themeComboHwnd, CB_ADDSTRING, 0, (LPARAM)L"深色主题");
+    // 选择当前主题
+    SendMessage(m_themeComboHwnd, CB_SETCURSEL, m_settings.GetTheme() == AppTheme::Light ? 0 : 1, 0);
+
+    // 数据目录控件
+    m_dataDirLabelHwnd = CreateWindowEx(0, L"STATIC", L"数据目录：",
+        WS_CHILD | WS_VISIBLE,
+        100, 150, 100, 24,
+        m_contentHwnd, (HMENU)4003, hInst, NULL);
+
+    m_dataDirEditHwnd = CreateWindowEx(0, L"EDIT", m_settings.GetDataDirectory().c_str(),
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+        210, 150, 300, 24,
+        m_contentHwnd, (HMENU)4004, hInst, NULL);
+
+    m_browseBtnHwnd = CreateWindowEx(0, L"BUTTON", L"浏览...",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        520, 150, 80, 24,
+        m_contentHwnd, (HMENU)4005, hInst, NULL);
+
+    // 保存按钮
+    m_saveSettingsBtnHwnd = CreateWindowEx(0, L"BUTTON", L"保存设置",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        width / 2 - 60, 220, 120, 30,
+        m_contentHwnd, (HMENU)4006, hInst, NULL);
+
+    // 重绘内容区
+    InvalidateRect(m_contentHwnd, NULL, TRUE);
+}
+
+void MainWindow::ShowGameListPage() {
+    ClearContentControls(); // 先清理内容区控件
+    m_currentPageType = ContentPage::GameList;
+    RefreshGameDisplay();
+}
+
+void MainWindow::DrawSettingsPage(HDC hdc, const RECT& rcClient) {
+    // 获取当前主题颜色
+    const ThemeColors& colors = ThemeManager::GetInstance().GetColors();
+
+    // 设置文本颜色和背景模式
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, colors.titleText); // 使用主题标题颜色
+
+    // 创建标题字体
+    HFONT hTitleFont = CreateFont(28, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
+    HFONT oldFont = (HFONT)SelectObject(hdc, hTitleFont);
+
+    // 绘制标题
+    RECT titleRect = rcClient;
+    titleRect.top += 30;
+    DrawText(hdc, L"设置", -1, &titleRect, DT_CENTER | DT_TOP | DT_SINGLELINE);
+
+    // 创建说明文字字体
+    HFONT hDescFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
+    SelectObject(hdc, hDescFont);
+
+    // 绘制说明文字
+    SetTextColor(hdc, colors.secondaryText); // 使用主题次要文本颜色
+    RECT descRect = rcClient;
+    descRect.top += 70;
+    DrawText(hdc, L"在此页面可以修改应用的外观和数据存储位置", -1, &descRect, DT_CENTER | DT_TOP | DT_SINGLELINE);
+
+    // 清理资源
+    SelectObject(hdc, oldFont);
+    DeleteObject(hTitleFont);
+    DeleteObject(hDescFont);
+}
+
+void MainWindow::SaveSettings() {
+    OutputDebugString(L"正在执行SaveSettings()方法...\n");
+
+    // 获取主题设置
+    int themeIndex = SendMessage(m_themeComboHwnd, CB_GETCURSEL, 0, 0);
+    AppTheme newTheme = (themeIndex == 0) ? AppTheme::Light : AppTheme::Dark;
+    m_settings.SetTheme(newTheme);
+
+    // 获取数据目录
+    wchar_t buffer[MAX_PATH];
+    GetWindowText(m_dataDirEditHwnd, buffer, MAX_PATH);
+    m_settings.SetDataDirectory(buffer);
+
+    OutputDebugString((L"设置内容 - 主题:" + std::wstring(newTheme == AppTheme::Light ? L"浅色" : L"深色") +
+        L", 数据目录:" + buffer + L"\n").c_str());
+
+    // 保存设置
+    bool saveResult = m_settings.Save();
+    OutputDebugString((L"保存结果:" + std::wstring(saveResult ? L"成功" : L"失败") + L"\n").c_str());
+
+    if (saveResult) {
+        MessageBox(m_hwnd, L"设置已保存", L"设置", MB_OK | MB_ICONINFORMATION);
+        ApplyTheme(newTheme);
+    }
+    else {
+        MessageBox(m_hwnd, L"保存设置失败，请检查文件权限", L"错误", MB_OK | MB_ICONERROR);
+    }
+}
+
+void MainWindow::BrowseForDataDirectory() {
+    wchar_t buffer[MAX_PATH] = { 0 };
+
+    // 获取当前数据目录
+    GetWindowText(m_dataDirEditHwnd, buffer, MAX_PATH);
+
+    // 创建浏览文件夹对话框
+    BROWSEINFO bi = { 0 };
+    bi.hwndOwner = m_hwnd;
+    bi.lpszTitle = L"请选择数据目录";
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+
+    LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+    if (pidl != NULL) {
+        // 获取选择的目录路径
+        if (SHGetPathFromIDList(pidl, buffer)) {
+            // 更新显示
+            SetWindowText(m_dataDirEditHwnd, buffer);
+        }
+
+        // 释放内存
+        CoTaskMemFree(pidl);
+    }
+}
+
+void MainWindow::ApplyTheme(AppTheme theme) {
+    // 记录当前和新主题信息
+    AppTheme currentTheme = ThemeManager::GetInstance().GetCurrentTheme();
+    OutputDebugString((L"ApplyTheme: 切换主题从 " +
+        std::wstring(currentTheme == AppTheme::Light ? L"浅色" : L"深色") +
+        L" 到 " +
+        std::wstring(theme == AppTheme::Light ? L"浅色" : L"深色") + L"\n").c_str());
+
+    // 应用主题到界面
+    ThemeManager::GetInstance().SwitchTheme(theme);
+
+    // 重绘界面以立即应用主题变更
+    InvalidateRect(m_hwnd, NULL, TRUE);
+    InvalidateRect(m_sidebarHwnd, NULL, TRUE);
+    InvalidateRect(m_contentHwnd, NULL, TRUE);
+
+    // 为其他子窗口设置主题
+    EnumChildWindows(m_hwnd, [](HWND hwnd, LPARAM lParam) -> BOOL {
+        InvalidateRect(hwnd, NULL, TRUE);
+        return TRUE;
+        }, 0);
+
+    OutputDebugString(L"主题已切换\n");
+}
+
+void MainWindow::ClearContentControls() {
+    if (m_themeComboHwnd) { DestroyWindow(m_themeComboHwnd); m_themeComboHwnd = nullptr; }
+    if (m_dataDirEditHwnd) { DestroyWindow(m_dataDirEditHwnd); m_dataDirEditHwnd = nullptr; }
+    if (m_browseBtnHwnd) { DestroyWindow(m_browseBtnHwnd); m_browseBtnHwnd = nullptr; }
+    if (m_saveSettingsBtnHwnd) { DestroyWindow(m_saveSettingsBtnHwnd); m_saveSettingsBtnHwnd = nullptr; }
+    if (m_themeLabelHwnd) { DestroyWindow(m_themeLabelHwnd); m_themeLabelHwnd = nullptr; }
+    if (m_dataDirLabelHwnd) { DestroyWindow(m_dataDirLabelHwnd); m_dataDirLabelHwnd = nullptr; }
 }
 
 // 刷新游戏显示
@@ -956,13 +1189,16 @@ void MainWindow::DrawGameCard(HDC hdc, const Game* game, int x, int y, int width
 
 // 绘制状态栏
 void MainWindow::DrawStatusBar(HDC hdc, const RECT& rect) {
-    // 绘制状态栏背景（浅灰色）
-    HBRUSH hBrushStatusBar = CreateSolidBrush(RGB(235, 235, 235));
+    // 获取当前主题颜色
+    const ThemeColors& colors = ThemeManager::GetInstance().GetColors();
+
+    // 绘制状态栏背景
+    HBRUSH hBrushStatusBar = CreateSolidBrush(colors.statusBarBackground);
     FillRect(hdc, &rect, hBrushStatusBar);
     DeleteObject(hBrushStatusBar);
 
     // 绘制顶部边框线
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(200, 200, 200));
+    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
     MoveToEx(hdc, rect.left, rect.top, NULL);
     LineTo(hdc, rect.right, rect.top);
@@ -970,7 +1206,7 @@ void MainWindow::DrawStatusBar(HDC hdc, const RECT& rect) {
     DeleteObject(hPen);
 
     // 绘制游戏总数和页码信息
-    SetTextColor(hdc, RGB(50, 50, 50));
+    SetTextColor(hdc, colors.primaryText);
     SetBkMode(hdc, TRANSPARENT);
 
     // 计算显示文本，使用与图片示例相同的格式
@@ -1071,15 +1307,23 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
             // 2. 顶部菜单
             switch (wmId) {
             case ID_MENU_GAME:
-                pThis->OnAddGame();
+            {
+                pThis->ShowGameListPage();
+            }
                 break;
             case ID_MENU_BOX:
             case ID_MENU_COMMUNITY:
-            case ID_MENU_CONFIG:
                 MessageBox(pThis->m_hwnd, L"该功能暂未实现", L"提示", MB_OK | MB_ICONINFORMATION);
                 break;
+            case ID_MENU_CONFIG:
+            {
+                pThis->ShowSettingsPage();
+            }
+                break;
             case ID_MENU_HELP:
+            {
                 pThis->ShowHelpDialog();
+            }
                 break;
 
                 // 3. 分页按钮
@@ -1221,75 +1465,73 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
             HBITMAP memBitmap = CreateCompatibleBitmap(hdc, width, height);
             HBITMAP oldBitmap = (HBITMAP)SelectObject(memDC, memBitmap);
 
-            // 填充白色背景
-            HBRUSH hBrushBg = CreateSolidBrush(RGB(240, 240, 245));
+            // 使用主题颜色填充背景
+            const ThemeColors& colors = ThemeManager::GetInstance().GetColors();
+            HBRUSH hBrushBg = CreateSolidBrush(colors.contentBackground);
             FillRect(memDC, &rcClient, hBrushBg);
             DeleteObject(hBrushBg);
 
             // 清空之前的删除按钮信息
             pThis->m_deleteButtons.clear();
 
-            // 卡片和间距
-            int cardWidth = 200;
-            int cardHeight = 280;
-            int gapX = 20;
-            int gapY = 20;
-            int startX = 10;
-            int startY = 10;
-
-            // 关键：根据内容区宽度动态计算列数
-            int columns = std::max(1, (width - gapX) / (cardWidth + gapX));
-
-            // 使用当前筛选后的游戏列表
-            const std::vector<Game*>& gamesToShow = pThis->m_currentGames;
-
-            // 计算当前页的起始和结束索引
-            int startIndex = pThis->m_currentPage * pThis->m_gamesPerPage;
-            int endIndex = std::min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
-
-            // 绘制当前页的游戏
-            for (int i = startIndex; i < endIndex; i++) {
-                int idx = i - startIndex;
-                int col = idx % columns;
-                int row = idx / columns;
-                int x = startX + col * (cardWidth + gapX);
-                int y = startY + row * (cardHeight + gapY);
-
-                pThis->DrawGameCard(memDC, gamesToShow[i], x, y, cardWidth, cardHeight, i);
+            if (pThis->m_currentPageType == ContentPage::Settings) {
+                // 绘制设置页面
+                pThis->DrawSettingsPage(memDC, rcClient);
             }
+            else {
+                // 游戏卡片和间距
+                int cardWidth = 200;
+                int cardHeight = 280;
+                int gapX = 20;
+                int gapY = 20;
+                int startX = 10;
+                int startY = 10;
 
-            // 如果当前页没有游戏，显示提示信息
-            if (startIndex >= (int)gamesToShow.size() || gamesToShow.empty()) {
-                RECT textRect = rcClient;
-                SetTextColor(memDC, RGB(100, 100, 100));
-                SetBkMode(memDC, TRANSPARENT);
-                HFONT hFont = CreateFont(20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                    CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
-                HFONT oldFont = (HFONT)SelectObject(memDC, hFont);
+                // 动态计算列数
+                int columns = std::max(1, (width - gapX) / (cardWidth + gapX));
+                const std::vector<Game*>& gamesToShow = pThis->m_currentGames;
+                int startIndex = pThis->m_currentPage * pThis->m_gamesPerPage;
+                int endIndex = std::min((int)gamesToShow.size(), startIndex + pThis->m_gamesPerPage);
 
-                DrawText(memDC, L"暂无游戏，请点击顶部菜单的游戏或工具栏中的 + 添加游戏",
-                    -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                // 绘制当前页的游戏
+                for (int i = startIndex; i < endIndex; i++) {
+                    int idx = i - startIndex;
+                    int col = idx % columns;
+                    int row = idx / columns;
+                    int x = startX + col * (cardWidth + gapX);
+                    int y = startY + row * (cardHeight + gapY);
+                    pThis->DrawGameCard(memDC, gamesToShow[i], x, y, cardWidth, cardHeight, i);
+                }
 
-                SelectObject(memDC, oldFont);
-                DeleteObject(hFont);
-            }
+                // 如果当前页没有游戏，显示提示信息
+                if (startIndex >= (int)gamesToShow.size() || gamesToShow.empty()) {
+                    RECT textRect = rcClient;
+                    SetTextColor(memDC, RGB(100, 100, 100));
+                    SetBkMode(memDC, TRANSPARENT);
+                    HFONT hFont = CreateFont(20, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
+                    HFONT oldFont = (HFONT)SelectObject(memDC, hFont);
+                    DrawText(memDC, L"暂无游戏，请点击顶部菜单的游戏或工具栏中的 + 添加游戏",
+                        -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    SelectObject(memDC, oldFont);
+                    DeleteObject(hFont);
+                }
 
-            // 显示翻页提示（如果有多页）
-            if (pThis->m_totalPages > 1) {
-                RECT navHintRect = { 10, height - 30, width - 10, height - 10 };
-                SetTextColor(memDC, RGB(80, 80, 80));
-                SetBkMode(memDC, TRANSPARENT);
-                HFONT hHintFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                    CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
-                HFONT oldHintFont = (HFONT)SelectObject(memDC, hHintFont);
-
-                std::wstring navHint = L"提示：可使用鼠标滚轮、Page Up/Down、Home/End 进行翻页";
-                DrawText(memDC, navHint.c_str(), -1, &navHintRect, DT_RIGHT | DT_BOTTOM | DT_SINGLELINE);
-
-                SelectObject(memDC, oldHintFont);
-                DeleteObject(hHintFont);
+                // 显示翻页提示（如果有多页）
+                if (pThis->m_totalPages > 1) {
+                    RECT navHintRect = { 10, height - 30, width - 10, height - 10 };
+                    SetTextColor(memDC, RGB(80, 80, 80));
+                    SetBkMode(memDC, TRANSPARENT);
+                    HFONT hHintFont = CreateFont(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"微软雅黑");
+                    HFONT oldHintFont = (HFONT)SelectObject(memDC, hHintFont);
+                    std::wstring navHint = L"提示：可使用鼠标滚轮、Page Up/Down、Home/End 进行翻页";
+                    DrawText(memDC, navHint.c_str(), -1, &navHintRect, DT_RIGHT | DT_BOTTOM | DT_SINGLELINE);
+                    SelectObject(memDC, oldHintFont);
+                    DeleteObject(hHintFont);
+                }
             }
 
             // 完成绘制后，将内存DC内容复制到屏幕
@@ -1391,6 +1633,29 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
     {
         // 处理右键菜单命令
         if (pThis) {
+            // 首先处理设置页面按钮，这应该与游戏选择无关
+            switch (LOWORD(wParam)) {
+            case 4005: // 浏览按钮
+            {
+                if (HIWORD(wParam) == BN_CLICKED) {
+                    OutputDebugString(L"浏览按钮被点击\n");
+                    pThis->BrowseForDataDirectory();
+                    return 0;
+                }
+            }
+                break;
+
+            case 4006: // 保存设置按钮
+            {
+                if (HIWORD(wParam) == BN_CLICKED) {
+                    OutputDebugString(L"保存设置按钮被点击\n");
+                    pThis->SaveSettings();
+                    return 0;
+                }
+            }
+                break;
+            }
+
             int gameIndex = (int)(INT_PTR)GetProp(hwnd, L"SelectedGameIndex");
             RemoveProp(hwnd, L"SelectedGameIndex");
 
@@ -1399,21 +1664,26 @@ LRESULT CALLBACK MainWindow::ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, 
 
                 switch (LOWORD(wParam)) {
                 case 1: // 启动游戏
+                {
                     if (game && game->Launch()) {
                         MessageBox(pThis->m_hwnd, L"游戏已启动", L"提示", MB_OK | MB_ICONINFORMATION);
                     }
                     else {
                         MessageBox(pThis->m_hwnd, L"启动失败，请检查可执行文件路径", L"启动失败", MB_OK | MB_ICONERROR);
                     }
+                }
                     break;
-
                 case 2: // 编辑游戏信息
+                {
                     MessageBox(pThis->m_hwnd, L"编辑游戏功能暂未实现", L"提示", MB_OK | MB_ICONINFORMATION);
+                }
+                    break;
+                case 3: // 删除游戏
+                {
+                    pThis->OnDeleteGame(gameIndex);
+                }
                     break;
 
-                case 3: // 删除游戏
-                    pThis->OnDeleteGame(gameIndex);
-                    break;
                 }
             }
             return 0;

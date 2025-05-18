@@ -4,6 +4,8 @@
 #include "../core/GameCollection.h"
 #include "GameDialog.h"
 #include "../core/GameManager.h"
+#include "../core/setting.h"
+#include "../gui/ThemeManager.h"
 
 #define SIDEBAR_WIDTH 180
 #define TOOLBAR_HEIGHT 40
@@ -24,6 +26,11 @@ struct MenuItem {
 struct DeleteButtonInfo {
     RECT rect;
     int gameIndex;
+};
+
+enum class ContentPage {
+    GameList,
+    Settings
 };
 
 class MainWindow {
@@ -50,6 +57,7 @@ private:
     void RefreshSidebar();
     void DrawStatusBar(HDC hdc, const RECT& rect);
     void ShowHelpDialog();
+    void ClearContentControls();
 
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -64,6 +72,13 @@ private:
     HWND m_pageInputHwnd;  // 页码输入框
     HWND m_searchHwnd;
     HMENU m_hMenu;
+    HWND m_themeLabelHwnd = nullptr;
+    HWND m_dataDirLabelHwnd = nullptr;
+
+    ContentPage m_currentPageType = ContentPage::GameList;
+    void ShowSettingsPage();
+    void ShowGameListPage();
+    void DrawSettingsPage(HDC hdc, const RECT& rcClient);
 
     // 分页相关
     int m_currentPage;     // 当前页码
@@ -89,4 +104,19 @@ private:
     std::vector<std::wstring> m_sidebarCategories;
     std::vector<Game*> m_currentGames; // 保存当前要显示的游戏
     std::wstring m_currentCategory;    // 当前筛选的分类（空为全部）
+
+    // 设置对象
+    Setting m_settings;
+
+    // 设置页面控件
+    HWND m_themeComboHwnd;
+    HWND m_dataDirEditHwnd;
+    HWND m_browseBtnHwnd;
+    HWND m_saveSettingsBtnHwnd;
+
+    // 设置页面相关方法
+    void InitializeSettings();
+    void SaveSettings();
+    void BrowseForDataDirectory();
+    void ApplyTheme(AppTheme theme);
 };

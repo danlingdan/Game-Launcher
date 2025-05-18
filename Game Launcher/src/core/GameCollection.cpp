@@ -1,5 +1,12 @@
 #include "GameCollection.h"
 
+// 使用更简短的别名
+using json = nlohmann::json;
+
+// 从其他地方导入的UTF-16<->UTF-8转换函数
+extern std::string wstring_to_utf8(const std::wstring& wstr);
+extern std::wstring utf8_to_wstring(const std::string& str);
+
 // 辅助函数：去除前后空格
 static std::wstring Trim(const std::wstring& str) {
     size_t first = str.find_first_not_of(L" \t\r\n");
@@ -18,15 +25,20 @@ static bool IEquals(const std::wstring& a, const std::wstring& b) {
 }
 
 GameCollection::GameCollection() {
-    // 设置数据文件路径
-    WCHAR appDataPath[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, appDataPath))) {
-        m_dataFilePath = appDataPath;
-        m_dataFilePath += L"\\GameLauncher\\games.dat";
+    // 默认数据目录：用户文档/GameLauncherData（与设置使用相同目录）
+    WCHAR path[MAX_PATH] = { 0 };
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, SHGFP_TYPE_CURRENT, path))) {
+        std::wstring dataDir = std::wstring(path) + L"\\GameLauncherData";
+        // 确保目录存在
+        SHCreateDirectoryExW(NULL, dataDir.c_str(), NULL);
+        m_dataFilePath = dataDir + L"\\games.json";
     }
     else {
-        m_dataFilePath = L"games.dat";
+        // 如果无法获取Documents目录，使用程序当前目录
+        m_dataFilePath = L"games.json";
     }
+
+    OutputDebugStringW((L"游戏数据文件路径: " + m_dataFilePath + L"\n").c_str());
 }
 
 GameCollection::~GameCollection() {
@@ -36,181 +48,170 @@ GameCollection::~GameCollection() {
 bool GameCollection::LoadGames() {
     m_games.clear();
 
-    // 使用Windows API直接读取文件，确保与SaveGames保持一致
-    HANDLE hFile = CreateFileW(
-        m_dataFilePath.c_str(),
-        GENERIC_READ,
-        FILE_SHARE_READ,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-
-    if (hFile == INVALID_HANDLE_VALUE) {
-        DWORD error = GetLastError();
-        OutputDebugStringW((L"打开文件失败，错误码: " + std::to_wstring(error) + L"\n").c_str());
-
-        // 如果是文件不存在的错误，创建示例数据
-        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
-            OutputDebugStringW(L"文件不存在，创建示例游戏数据\n");
-            CreateSampleGames();
-        }
-        return false;
+    // 确保目录存在
+    std::wstring dirPath = m_dataFilePath.substr(0, m_dataFilePath.find_last_of(L"\\"));
+    if (!dirPath.empty()) {
+        SHCreateDirectoryExW(NULL, dirPath.c_str(), NULL);
     }
 
-    // 获取文件大小
-    DWORD fileSize = GetFileSize(hFile, NULL);
-    if (fileSize == INVALID_FILE_SIZE || fileSize == 0) {
-        CloseHandle(hFile);
-        OutputDebugStringW(L"文件为空或无法获取文件大小\n");
+    OutputDebugStringW((L"正在加载游戏数据从: " + m_dataFilePath + L"\n").c_str());
+
+    try {
+        // 尝试打开并读取JSON文件
+        std::ifstream file(m_dataFilePath);
+        if (!file.is_open()) {
+            DWORD error = GetLastError();
+            OutputDebugStringW((L"打开文件失败，错误码: " + std::to_wstring(error) + L"\n").c_str());
+
+            // 如果是文件不存在的错误，创建示例数据
+            if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+                OutputDebugStringW(L"文件不存在，创建示例游戏数据\n");
+                CreateSampleGames(); // 这会调用SaveGames保存到正确位置
+                return true; // 返回成功，因为已经创建了示例数据
+            }
+            return false;
+        }
+
+        json gamesJson;
+        file >> gamesJson;
+        file.close();
+
+        // 检查是否有games数组
+        if (!gamesJson.contains("games") || !gamesJson["games"].is_array()) {
+            OutputDebugStringW(L"JSON格式错误：没有games数组\n");
+            CreateSampleGames();
+            return false;
+        }
+
+        // 读取所有游戏信息
+        for (const auto& gameJson : gamesJson["games"]) {
+            Game game;
+
+            // 解析游戏属性
+            if (gameJson.contains("name")) {
+                game.SetName(utf8_to_wstring(gameJson["name"]));
+            }
+            if (gameJson.contains("releaseYear")) {
+                game.SetReleaseYear(utf8_to_wstring(gameJson["releaseYear"]));
+            }
+            if (gameJson.contains("publisher")) {
+                game.SetPublisher(utf8_to_wstring(gameJson["publisher"]));
+            }
+            if (gameJson.contains("language")) {
+                game.SetLanguage(utf8_to_wstring(gameJson["language"]));
+            }
+            if (gameJson.contains("category")) {
+                game.SetCategory(utf8_to_wstring(gameJson["category"]));
+            }
+            if (gameJson.contains("platform")) {
+                game.SetPlatform(utf8_to_wstring(gameJson["platform"]));
+            }
+            if (gameJson.contains("executablePath")) {
+                game.SetExecutablePath(utf8_to_wstring(gameJson["executablePath"]));
+            }
+            if (gameJson.contains("iconPath")) {
+                game.SetIconPath(utf8_to_wstring(gameJson["iconPath"]));
+            }
+
+            // 添加到游戏集合
+            m_games.push_back(game);
+        }
+
+        OutputDebugStringW((L"成功加载 " + std::to_wstring(m_games.size()) + L" 个游戏\n").c_str());
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::string errorMsg = "加载游戏数据时发生异常: ";
+        errorMsg += e.what();
+        OutputDebugStringA(errorMsg.c_str());
+
+        // 如果加载失败，创建示例数据
         CreateSampleGames();
         return false;
     }
+    catch (...) {
+        OutputDebugStringW(L"加载游戏数据时发生未知异常\n");
 
-    // 分配缓冲区
-    std::vector<BYTE> buffer(fileSize);
-    DWORD bytesRead;
-
-    // 读取文件内容
-    if (!ReadFile(hFile, buffer.data(), fileSize, &bytesRead, NULL) || bytesRead == 0) {
-        CloseHandle(hFile);
-        OutputDebugStringW(L"读取文件失败\n");
+        // 如果加载失败，创建示例数据
+        CreateSampleGames();
         return false;
     }
-
-    CloseHandle(hFile);
-
-    // 检查BOM标记并跳过
-    size_t dataOffset = 0;
-    if (fileSize >= 2 && buffer[0] == 0xFF && buffer[1] == 0xFE) {
-        // 跳过UTF-16LE BOM
-        dataOffset = 2;
-    }
-
-    // 将缓冲区转换为wchar_t格式
-    const wchar_t* wideBuffer = reinterpret_cast<const wchar_t*>(buffer.data() + dataOffset);
-    size_t wideLength = (fileSize - dataOffset) / sizeof(wchar_t);
-
-    // 按行处理
-    std::wstring line;
-    for (size_t i = 0; i < wideLength; i++) {
-        if (wideBuffer[i] == L'\r' && i + 1 < wideLength && wideBuffer[i + 1] == L'\n') {
-            // 发现完整行，处理它
-            if (!line.empty()) {
-                Game game = Game::Deserialize(line);
-                m_games.push_back(game);
-                line.clear();
-            }
-            i++; // 跳过\n
-        }
-        else if (wideBuffer[i] == L'\n') {
-            // 处理只有\n的情况
-            if (!line.empty()) {
-                Game game = Game::Deserialize(line);
-                m_games.push_back(game);
-                line.clear();
-            }
-        }
-        else {
-            // 累积字符
-            line += wideBuffer[i];
-        }
-    }
-
-    // 处理最后一行（如果没有换行符结尾）
-    if (!line.empty()) {
-        Game game = Game::Deserialize(line);
-        m_games.push_back(game);
-    }
-
-    OutputDebugStringW((L"成功加载 " + std::to_wstring(m_games.size()) + L" 个游戏\n").c_str());
-    return true;
 }
 
 // 保存游戏数据到文件
 bool GameCollection::SaveGames() {
     try {
-        // 确保目录存在 - 使用SHCreateDirectoryEx直接创建完整路径层次
+        // 确保目录存在
         std::wstring directory = m_dataFilePath.substr(0, m_dataFilePath.find_last_of(L"\\"));
         if (!directory.empty()) {
-            int result = SHCreateDirectoryEx(NULL, directory.c_str(), NULL);
+            int result = SHCreateDirectoryExW(NULL, directory.c_str(), NULL);
             if (result != ERROR_SUCCESS && result != ERROR_ALREADY_EXISTS) {
                 OutputDebugStringW((L"创建目录失败, 错误码: " + std::to_wstring(result) + L"\n").c_str());
-                // 尝试创建目录失败，尝试保存到当前目录
+
+                // 尝试使用当前目录作为备选
                 wchar_t currentDir[MAX_PATH];
                 GetCurrentDirectoryW(MAX_PATH, currentDir);
-                m_dataFilePath = std::wstring(currentDir) + L"\\games.dat";
+                m_dataFilePath = std::wstring(currentDir) + L"\\games.json";
                 OutputDebugStringW((L"改为保存到当前目录: " + m_dataFilePath + L"\n").c_str());
             }
         }
 
-        // 使用Windows API直接写入文件，避免C++流的潜在问题
-        HANDLE hFile = CreateFileW(
-            m_dataFilePath.c_str(),
-            GENERIC_WRITE,
-            0,                     // 不共享
-            NULL,                  // 默认安全属性
-            CREATE_ALWAYS,         // 总是创建新文件
-            FILE_ATTRIBUTE_NORMAL,
-            NULL
-        );
+        OutputDebugStringW((L"正在保存游戏数据到: " + m_dataFilePath + L"\n").c_str());
 
-        if (hFile == INVALID_HANDLE_VALUE) {
+        // 创建JSON结构
+        json gamesJson;
+        json gamesArray = json::array();
+
+        // 添加所有游戏
+        for (const auto& game : m_games) {
+            json gameJson;
+            gameJson["name"] = wstring_to_utf8(game.GetName());
+            gameJson["releaseYear"] = wstring_to_utf8(game.GetReleaseYear());
+            gameJson["publisher"] = wstring_to_utf8(game.GetPublisher());
+            gameJson["language"] = wstring_to_utf8(game.GetLanguage());
+            gameJson["category"] = wstring_to_utf8(game.GetCategory());
+            gameJson["platform"] = wstring_to_utf8(game.GetPlatform());
+            gameJson["executablePath"] = wstring_to_utf8(game.GetExecutablePath());
+            gameJson["iconPath"] = wstring_to_utf8(game.GetIconPath());
+
+            gamesArray.push_back(gameJson);
+        }
+
+        gamesJson["games"] = gamesArray;
+
+        // 保存到文件
+        std::ofstream file(m_dataFilePath);
+        if (!file.is_open()) {
             DWORD error = GetLastError();
             OutputDebugStringW((L"创建文件失败，错误码: " + std::to_wstring(error) + L"\n").c_str());
 
             // 尝试备用路径
             wchar_t tempPath[MAX_PATH];
             GetTempPathW(MAX_PATH, tempPath);
-            std::wstring backupPath = std::wstring(tempPath) + L"games_backup.dat";
+            std::wstring backupPath = std::wstring(tempPath) + L"games_backup.json";
 
             OutputDebugStringW((L"尝试备用路径: " + backupPath + L"\n").c_str());
 
-            hFile = CreateFileW(
-                backupPath.c_str(),
-                GENERIC_WRITE,
-                0,
-                NULL,
-                CREATE_ALWAYS,
-                FILE_ATTRIBUTE_NORMAL,
-                NULL
-            );
-
-            if (hFile == INVALID_HANDLE_VALUE) {
+            std::ofstream backupFile(backupPath);
+            if (!backupFile.is_open()) {
                 OutputDebugStringW(L"备用路径也失败，无法保存游戏数据\n");
                 return false;
             }
 
+            // 使用pretty print格式保存JSON
+            backupFile << gamesJson.dump(4);
+            backupFile.close();
+
             // 更新保存路径为成功的备用路径
             m_dataFilePath = backupPath;
+            OutputDebugStringW((L"游戏数据保存到备用路径: " + backupPath + L"\n").c_str());
+            return true;
         }
 
-        // 写入UTF-16LE BOM标记
-        const BYTE BOM[] = { 0xFF, 0xFE };
-        DWORD bytesWritten = 0;
-        WriteFile(hFile, BOM, sizeof(BOM), &bytesWritten, NULL);
+        // 使用pretty print格式保存JSON
+        file << gamesJson.dump(4);
+        file.close();
 
-        // 逐个写入游戏数据
-        for (const auto& game : m_games) {
-            std::wstring line = game.Serialize() + L"\r\n";
-            WriteFile(
-                hFile,
-                line.c_str(),
-                static_cast<DWORD>(line.length() * sizeof(wchar_t)),
-                &bytesWritten,
-                NULL
-            );
-
-            if (bytesWritten != line.length() * sizeof(wchar_t)) {
-                OutputDebugStringW(L"写入文件数据不完整\n");
-                CloseHandle(hFile);
-                return false;
-            }
-        }
-
-        // 关闭文件
-        CloseHandle(hFile);
         OutputDebugStringW((L"游戏数据成功保存到: " + m_dataFilePath + L"\n").c_str());
         return true;
     }
