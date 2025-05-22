@@ -1,5 +1,6 @@
 #pragma once
 #include "../framework.h"
+#include "../tools/StringUtils.h"
 
 // 游戏类 - 存储单个游戏的信息
 class Game {
@@ -35,6 +36,10 @@ public:
     const std::wstring& GetIconPath() const { return m_iconPath; }
     void SetIconPath(const std::wstring& path) { m_iconPath = path; }
 
+    // 添加启动参数的getter和setter
+    const std::wstring& GetLaunchParams() const;
+    void SetLaunchParams(const std::wstring& params);
+
     // 启动游戏
     bool Launch() const;
 
@@ -51,6 +56,9 @@ private:
     std::wstring m_platform;       // 平台
     std::wstring m_executablePath; // 可执行文件路径
     std::wstring m_iconPath;       // 图标路径
+
+    // 新增启动参数成员变量
+    std::wstring m_launchParams;
 
     // 可以添加其他属性如评分、标签等
 };

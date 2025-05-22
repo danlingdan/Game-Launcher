@@ -1,5 +1,9 @@
 #include "Game.h"
 
+//===============================================================
+// 构造函数和析构函数
+//===============================================================
+
 Game::Game() :
     m_name(L""),
     m_releaseYear(L""),
@@ -8,7 +12,8 @@ Game::Game() :
     m_category(L""),
     m_platform(L"WIN98"),
     m_executablePath(L""),
-    m_iconPath(L"") {
+    m_iconPath(L""),
+    m_launchParams(L"") {
 }
 
 Game::Game(const std::wstring& name, const std::wstring& releaseYear,
@@ -21,90 +26,129 @@ Game::Game(const std::wstring& name, const std::wstring& releaseYear,
     m_category(category),
     m_platform(platform),
     m_executablePath(L""),
-    m_iconPath(L"") {
+    m_iconPath(L""),
+    m_launchParams(L"") {
 }
 
 Game::~Game() {
+    // 析构函数保持为空，不需要特殊清理
 }
+
+//===============================================================
+// Getter和Setter方法
+//===============================================================
+
+const std::wstring& Game::GetLaunchParams() const {
+    return m_launchParams;
+}
+
+void Game::SetLaunchParams(const std::wstring& params) {
+    m_launchParams = params;
+}
+
+//===============================================================
+// 游戏操作方法
+//===============================================================
 
 bool Game::Launch() const {
-    // 检查可执行文件路径是否为空
+    // 如果可执行文件路径为空，无法启动
     if (m_executablePath.empty()) {
-        MessageBoxW(NULL, L"未设置可执行文件路径，无法启动游戏。", L"启动失败", MB_OK | MB_ICONERROR);
         return false;
     }
 
-    // 检查文件是否存在
-    if (GetFileAttributesW(m_executablePath.c_str()) == INVALID_FILE_ATTRIBUTES) {
-        MessageBoxW(NULL, (L"找不到可执行文件:\n" + m_executablePath).c_str(), L"启动失败", MB_OK | MB_ICONERROR);
-        return false;
+    // 构建命令行（包含可选的启动参数）
+    std::wstring commandLine;
+    if (!m_launchParams.empty()) {
+        commandLine = L"\"" + m_executablePath + L"\" " + m_launchParams;
+    }
+    else {
+        commandLine = L"\"" + m_executablePath + L"\"";
     }
 
-    // 使用ShellExecute启动游戏
-    HINSTANCE result = ShellExecuteW(
-        NULL,           // 父窗口句柄
-        L"open",        // 操作
-        m_executablePath.c_str(), // 文件路径
-        NULL,           // 参数
-        NULL,           // 工作目录
-        SW_SHOWNORMAL   // 显示窗口
+    // 准备进程启动信息
+    STARTUPINFO si = { sizeof(STARTUPINFO) };
+    PROCESS_INFORMATION pi = { 0 };
+
+    // 创建进程启动游戏
+    BOOL result = CreateProcess(
+        NULL,                       // 应用程序名（使用命令行）
+        (LPWSTR)commandLine.c_str(),// 命令行（包含参数）
+        NULL,                       // 进程安全属性
+        NULL,                       // 线程安全属性
+        FALSE,                      // 句柄继承标志
+        0,                          // 创建标志
+        NULL,                       // 环境块
+        NULL,                       // 当前目录
+        &si,                        // STARTUPINFO
+        &pi                         // PROCESS_INFORMATION
     );
 
-    // ShellExecute返回值小于等于32表示失败
-    if ((INT_PTR)result <= 32) {
-        MessageBoxW(NULL, L"启动游戏失败，请检查文件路径和权限。", L"启动失败", MB_OK | MB_ICONERROR);
-        return false;
+    // 如果创建成功，关闭句柄
+    if (result) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return true;
     }
 
-    return true;
+    return false;
 }
 
-// 将游戏数据序列化为字符串
+//===============================================================
+// 序列化和反序列化
+//===============================================================
+
+// 序列化
 std::wstring Game::Serialize() const {
-    // 使用直接字符串连接代替stringstream，性能更高
-    return m_name + L"|" +
-        m_releaseYear + L"|" +
-        m_publisher + L"|" +
-        m_language + L"|" +
-        m_category + L"|" +
-        m_platform + L"|" +
-        m_executablePath + L"|" +
-        m_iconPath;
+    // 使用JSON格式序列化游戏对象
+    nlohmann::json j;
+    j["name"] = wstring_to_utf8(m_name);
+    j["releaseYear"] = wstring_to_utf8(m_releaseYear);
+    j["publisher"] = wstring_to_utf8(m_publisher);
+    j["language"] = wstring_to_utf8(m_language);
+    j["category"] = wstring_to_utf8(m_category);
+    j["platform"] = wstring_to_utf8(m_platform);
+    j["executablePath"] = wstring_to_utf8(m_executablePath);
+    j["iconPath"] = wstring_to_utf8(m_iconPath);
+    j["launchParams"] = wstring_to_utf8(m_launchParams);
+
+    return utf8_to_wstring(j.dump(4)); // 使用4个空格缩进美化输出
 }
 
-// 从字符串反序列化为游戏数据
+// 反序列化
 Game Game::Deserialize(const std::wstring& data) {
     Game game;
-    if (data.empty()) {
-        return game; // 返回默认游戏对象
+    try {
+        nlohmann::json j = nlohmann::json::parse(wstring_to_utf8(data));
+
+        // 必填项
+        game.m_name = utf8_to_wstring(j["name"].get<std::string>());
+
+        // 可选项，使用异常安全的获取方式
+        game.m_releaseYear = j.contains("releaseYear") ?
+            utf8_to_wstring(j["releaseYear"].get<std::string>()) : L"";
+        game.m_publisher = j.contains("publisher") ?
+            utf8_to_wstring(j["publisher"].get<std::string>()) : L"";
+        game.m_language = j.contains("language") ?
+            utf8_to_wstring(j["language"].get<std::string>()) : L"";
+        game.m_category = j.contains("category") ?
+            utf8_to_wstring(j["category"].get<std::string>()) : L"";
+        game.m_platform = j.contains("platform") ?
+            utf8_to_wstring(j["platform"].get<std::string>()) : L"WIN98";
+        game.m_executablePath = j.contains("executablePath") ?
+            utf8_to_wstring(j["executablePath"].get<std::string>()) : L"";
+        game.m_iconPath = j.contains("iconPath") ?
+            utf8_to_wstring(j["iconPath"].get<std::string>()) : L"";
+        game.m_launchParams = j.contains("launchParams") ?
+            utf8_to_wstring(j["launchParams"].get<std::string>()) : L"";
     }
+    catch (const std::exception& e) {
+        // 记录反序列化错误信息
+        OutputDebugStringA("游戏反序列化失败: ");
+        OutputDebugStringA(e.what());
+        OutputDebugStringA("\n");
 
-    std::vector<std::wstring> parts;
-    parts.reserve(8); // 预分配空间，避免频繁重分配
-
-    size_t start = 0;
-    size_t end = 0;
-
-    // 手动分割字符串，比wstringstream更高效
-    while ((end = data.find(L'|', start)) != std::wstring::npos) {
-        parts.push_back(data.substr(start, end - start));
-        start = end + 1;
+        // 返回默认的空游戏对象
     }
-
-    // 添加最后一部分
-    if (start < data.length()) {
-        parts.push_back(data.substr(start));
-    }
-
-    // 安全地按部分数量依次赋值
-    if (parts.size() >= 1) game.m_name = parts[0];
-    if (parts.size() >= 2) game.m_releaseYear = parts[1];
-    if (parts.size() >= 3) game.m_publisher = parts[2];
-    if (parts.size() >= 4) game.m_language = parts[3];
-    if (parts.size() >= 5) game.m_category = parts[4];
-    if (parts.size() >= 6) game.m_platform = parts[5];
-    if (parts.size() >= 7) game.m_executablePath = parts[6];
-    if (parts.size() >= 8) game.m_iconPath = parts[7];
 
     return game;
 }

@@ -27,16 +27,10 @@
     <ClInclude Include="src\core\GameManager.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="src\persistence\Persistence.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="src\gui\MainWindow.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="src\gui\GameDialog.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\gui\GUIHelpers.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Resource.h">
@@ -81,16 +75,10 @@
     <ClCompile Include="src\core\GameManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="src\persistence\Persistence.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="src\gui\MainWindow.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="src\gui\GameDialog.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\gui\GUIHelpers.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="src\main.cpp">

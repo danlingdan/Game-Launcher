@@ -43,6 +43,7 @@ public:
     void OnAddGame();
     void OnDeleteGame(int gameIndex);
     void DrawGameCard(HDC hdc, const Game* game, int x, int y, int width, int height, int gameIndex);
+    void AsyncLoadGames();
 private:
     void OnCreate(HWND hwnd);
     void OnDestroy();
@@ -62,7 +63,7 @@ private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK ContentWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK SidebarWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
+    static LRESULT CALLBACK ThemeButtonProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     HWND m_hwnd;
     HWND m_sidebarHwnd;
@@ -104,6 +105,7 @@ private:
     std::vector<std::wstring> m_sidebarCategories;
     std::vector<Game*> m_currentGames; // 保存当前要显示的游戏
     std::wstring m_currentCategory;    // 当前筛选的分类（空为全部）
+    bool m_isLoading;  // 加载状态标志
 
     // 设置对象
     Setting m_settings;

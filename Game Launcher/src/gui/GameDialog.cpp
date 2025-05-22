@@ -1,6 +1,6 @@
 #include "GameDialog.h"
 
-//函数声明
+// 函数声明
 std::wstring GetExeFileInfoString(const std::wstring& filePath, const std::wstring& key);
 
 GameDialog::GameDialog() : m_pGame(nullptr), m_bEditing(false) {
@@ -37,49 +37,24 @@ bool GameDialog::ShowEditDialog(HWND hParent, Game& game, GameCollection& collec
 
 INT_PTR CALLBACK GameDialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     GameDialog* pThis = (GameDialog*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
+
     if (message == WM_INITDIALOG) {
         pThis = (GameDialog*)lParam;
         SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)pThis);
         pThis->InitDialog(hDlg);
         return TRUE;
     }
-    if (pThis) {
-        switch (message) {
-        case WM_COMMAND:
-            switch (LOWORD(wParam)) {
-            case IDOK:
-                if (pThis->ValidateDialog(hDlg)) {
-                    pThis->GetDialogData(hDlg);
-                    EndDialog(hDlg, IDOK);
-                }
-                return TRUE;
-            case IDCANCEL:
-                EndDialog(hDlg, IDCANCEL);
-                return TRUE;
-            case IDC_BROWSE_EXECUTABLE:
-                pThis->BrowseExecutable(hDlg);
-                return TRUE;
-            case IDC_BROWSE_ICON:
-                pThis->BrowseIcon(hDlg);
-                return TRUE;
-            }
-            break;
-        }
+
+    if (!pThis) {
+        return FALSE;
     }
-    return FALSE;
-}
 
-INT_PTR GameDialog::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
-    case WM_INIT_DIALOG:
-        InitDialog(hDlg);
-        return TRUE;
-
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case IDOK:
-            if (ValidateDialog(hDlg)) {
-                GetDialogData(hDlg);
+            if (pThis->ValidateDialog(hDlg)) {
+                pThis->GetDialogData(hDlg);
                 EndDialog(hDlg, IDOK);
             }
             return TRUE;
@@ -89,11 +64,18 @@ INT_PTR GameDialog::HandleMessage(HWND hDlg, UINT message, WPARAM wParam, LPARAM
             return TRUE;
 
         case IDC_BROWSE_EXECUTABLE:
-            BrowseExecutable(hDlg);
+            pThis->BrowseExecutable(hDlg);
             return TRUE;
 
         case IDC_BROWSE_ICON:
-            BrowseIcon(hDlg);
+            pThis->BrowseIcon(hDlg);
+            return TRUE;
+
+        case IDC_EXECUTABLE_PATH:
+            // 如果是编辑文本变更通知
+            if (HIWORD(wParam) == EN_CHANGE) {
+                // 可以在这里添加额外逻辑，例如启用/禁用按钮
+            }
             return TRUE;
         }
         break;
@@ -115,6 +97,7 @@ void GameDialog::InitDialog(HWND hDlg) {
     SetDlgItemText(hDlg, IDC_PLATFORM, m_pGame->GetPlatform().c_str());
     SetDlgItemText(hDlg, IDC_EXECUTABLE_PATH, m_pGame->GetExecutablePath().c_str());
     SetDlgItemText(hDlg, IDC_ICON_PATH, m_pGame->GetIconPath().c_str());
+    SetDlgItemText(hDlg, IDC_LAUNCH_PARAMS, m_pGame->GetLaunchParams().c_str());
 
     // 使用固定分类初始化下拉框
     InitCategoryComboBox(hDlg);
@@ -136,20 +119,6 @@ void GameDialog::InitDialog(HWND hDlg) {
         // 如果当前无分类但下拉框有项目，选中第一项
         SendMessage(GetDlgItem(hDlg, IDC_CATEGORY), CB_SETCURSEL, 0, 0);
     }
-}
-void GameDialog::InitCategoryComboBox(HWND hDlg) {
-    HWND hCategory = GetDlgItem(hDlg, IDC_CATEGORY);
-
-    // 清空原有内容
-    SendMessage(hCategory, CB_RESETCONTENT, 0, 0);
-
-    // 添加预定义分类（跳过"全部游戏"选项，因为它只是一个筛选选项）
-    for (size_t i = 1; i < PREDEFINED_GAME_CATEGORIES.size(); ++i) {
-        SendMessage(hCategory, CB_ADDSTRING, 0, (LPARAM)PREDEFINED_GAME_CATEGORIES[i].c_str());
-    }
-
-    // 默认选中第一个实际分类
-    SendMessage(hCategory, CB_SETCURSEL, 0, 0);
 }
 
 void GameDialog::GetDialogData(HWND hDlg) {
@@ -178,6 +147,30 @@ void GameDialog::GetDialogData(HWND hDlg) {
 
     GetDlgItemText(hDlg, IDC_CATEGORY, buffer, 1024);
     m_pGame->SetCategory(buffer);
+
+    GetDlgItemText(hDlg, IDC_LAUNCH_PARAMS, buffer, 1024);
+    m_pGame->SetLaunchParams(buffer);
+}
+
+void GameDialog::InitCategoryComboBox(HWND hDlg) {
+    // 获取下拉框句柄
+    HWND hCategoryCombo = GetDlgItem(hDlg, IDC_CATEGORY);
+
+    // 清空现有项目
+    SendMessage(hCategoryCombo, CB_RESETCONTENT, 0, 0);
+
+    // 从游戏集合获取所有分类
+    std::vector<std::wstring> categories = m_pCollection->GetAllCategories();
+
+    // 添加"未分类"选项
+    SendMessage(hCategoryCombo, CB_ADDSTRING, 0, (LPARAM)L"未分类");
+
+    // 添加所有分类到下拉框
+    for (const auto& category : categories) {
+        if (!category.empty() && category != L"未分类") {
+            SendMessage(hCategoryCombo, CB_ADDSTRING, 0, (LPARAM)category.c_str());
+        }
+    }
 }
 
 void GameDialog::BrowseExecutable(HWND hDlg) {
@@ -202,13 +195,21 @@ void GameDialog::BrowseExecutable(HWND hDlg) {
 
         // 只在对应控件为空时填充，避免覆盖用户输入
         WCHAR buffer[1024];
-        if (GetDlgItemText(hDlg, IDC_GAME_NAME, buffer, 1024) == 0 && !productName.empty())
-            SetDlgItemText(hDlg, IDC_GAME_NAME, productName.c_str());
-        else if (GetDlgItemText(hDlg, IDC_GAME_NAME, buffer, 1024) == 0 && !fileDescription.empty())
-            SetDlgItemText(hDlg, IDC_GAME_NAME, fileDescription.c_str());
+        if (GetDlgItemText(hDlg, IDC_GAME_NAME, buffer, 1024) == 0) {
+            if (!productName.empty())
+                SetDlgItemText(hDlg, IDC_GAME_NAME, productName.c_str());
+            else if (!fileDescription.empty())
+                SetDlgItemText(hDlg, IDC_GAME_NAME, fileDescription.c_str());
+        }
 
         if (GetDlgItemText(hDlg, IDC_PUBLISHER, buffer, 1024) == 0 && !companyName.empty())
             SetDlgItemText(hDlg, IDC_PUBLISHER, companyName.c_str());
+
+        // 尝试从可执行文件自动提取图标
+        if (GetDlgItemText(hDlg, IDC_ICON_PATH, buffer, 1024) == 0) {
+            // 这里可以添加从EXE提取图标的功能
+            // ExtractIconFromExecutable(exePath, iconPath)
+        }
     }
 }
 
@@ -239,6 +240,21 @@ bool GameDialog::ValidateDialog(HWND hDlg) {
         return false;
     }
 
+    // 验证可执行文件路径
+    GetDlgItemText(hDlg, IDC_EXECUTABLE_PATH, buffer, 1024);
+    if (wcslen(buffer) == 0) {
+        MessageBox(hDlg, L"请选择游戏可执行文件", L"验证失败", MB_OK | MB_ICONERROR);
+        SetFocus(GetDlgItem(hDlg, IDC_EXECUTABLE_PATH));
+        return false;
+    }
+
+    // 检查文件是否存在
+    if (GetFileAttributes(buffer) == INVALID_FILE_ATTRIBUTES) {
+        MessageBox(hDlg, L"指定的可执行文件不存在", L"验证失败", MB_OK | MB_ICONERROR);
+        SetFocus(GetDlgItem(hDlg, IDC_EXECUTABLE_PATH));
+        return false;
+    }
+
     return true;
 }
 
@@ -247,6 +263,7 @@ std::wstring GetExeFileInfoString(const std::wstring& filePath, const std::wstri
     DWORD dummy;
     DWORD size = GetFileVersionInfoSizeW(filePath.c_str(), &dummy);
     if (size == 0) return L"";
+
     std::vector<BYTE> data(size);
     if (!GetFileVersionInfoW(filePath.c_str(), 0, size, data.data())) return L"";
 

@@ -141,10 +141,8 @@
     <ClInclude Include="src\core\GameManager.h" />
     <ClInclude Include="src\framework.h" />
     <ClInclude Include="src\gui\GameDialog.h" />
-    <ClInclude Include="src\gui\GUIHelpers.h" />
     <ClInclude Include="src\gui\MainWindow.h" />
     <ClInclude Include="src\gui\ThemeManager.h" />
-    <ClInclude Include="src\persistence\Persistence.h" />
     <ClInclude Include="src\tools\StringUtils.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
@@ -162,10 +160,8 @@
     <ClCompile Include="src\core\GameManager.cpp" />
     <ClCompile Include="src\gui\ThemeManager.cpp" />
     <ClCompile Include="src\gui\GameDialog.cpp" />
-    <ClCompile Include="src\gui\GUIHelpers.cpp" />
     <ClCompile Include="src\gui\MainWindow.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\persistence\Persistence.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="GameLauncher.manifest" />

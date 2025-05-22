@@ -42,6 +42,10 @@
 // 自定义消息
 #define WM_INIT_DIALOG (WM_USER + 100)
 
+// 主题相关自定义消息
+#define WM_SETBKCOLOR (WM_USER + 200)
+#define WM_SETFGCOLOR (WM_USER + 201)
+#define WM_THEMECHANGED (WM_USER + 202)
 // 控件ID
 #define IDC_GAME_NAME 3000
 #define IDC_RELEASE_YEAR 3001
@@ -53,6 +57,7 @@
 #define IDC_BROWSE_EXECUTABLE 3007
 #define IDC_ICON_PATH 3008
 #define IDC_BROWSE_ICON 3009
+#define IDC_LAUNCH_PARAMS 3010  // 添加启动参数控件ID
 
 // 游戏对话框
 #define IDD_DIALOG_GAME            150

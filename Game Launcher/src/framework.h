@@ -1,9 +1,12 @@
-﻿// header.h: 标准系统包含文件的包含文件，
-// 或特定于项目的包含文件
+﻿//
+// framework.h: 标准系统包含文件的集合和项目通用功能
 //
 
 #pragma once
 
+//==============================================================================
+// Windows 系统版本定义
+//==============================================================================
 // 开启对 Windows 8.1 及以上系统的支持
 #ifndef WINVER
 #define WINVER 0x0603        // Windows 8.1
@@ -13,54 +16,71 @@
 #endif
 
 #include "../targetver.h"
-// Windows 头文件
-#define NOMINMAX
+
+//==============================================================================
+// Windows 系统头文件
+//==============================================================================
+#define NOMINMAX  // 防止 Windows 头文件定义的 min/max 与 STL 冲突
 #include <windows.h>
 #pragma comment(lib, "Version.lib")
 #include <CommCtrl.h>
 #pragma comment(lib, "comctl32.lib")
 #include <commdlg.h>
+#include <shlwapi.h>
+#pragma comment(lib, "shlwapi.lib")
+#include <shellapi.h>
+#include <ShlObj.h>
 
-#include <nlohmann/json.hpp>
-#include <codecvt>
-#include <locale>
-
+//==============================================================================
+// C/C++ 标准库头文件
+//==============================================================================
 // C 运行时头文件
 #include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
 #include <tchar.h>
+
+// C++ 标准库
 #include <string>
 #include <vector>
 #include <memory>
 #include <functional>
-#include <shlwapi.h>
-#include <shellapi.h>
-#pragma comment(lib, "shlwapi.lib")
 #include <sstream>
 #include <fstream>
 #include <algorithm>
 #include <set>
-#include <ShlObj.h>
+#include <codecvt>
+#include <locale>
 #include <cwctype>
+#include <thread>
 
-// DPI 相关定义 - 避免依赖较新的头文件
+// 第三方库
+#include <nlohmann/json.hpp>
+
+//==============================================================================
+// DPI 相关定义和函数
+//==============================================================================
+// DPI 感知类型定义 (避免依赖较新的头文件)
 #ifndef PROCESS_DPI_UNAWARE
-#define PROCESS_DPI_UNAWARE 0
+#define PROCESS_DPI_UNAWARE 0          // DPI 无感知
 #endif
 #ifndef PROCESS_SYSTEM_DPI_AWARE
-#define PROCESS_SYSTEM_DPI_AWARE 1
+#define PROCESS_SYSTEM_DPI_AWARE 1     // 系统 DPI 感知
 #endif
 #ifndef PROCESS_PER_MONITOR_DPI_AWARE
-#define PROCESS_PER_MONITOR_DPI_AWARE 2
+#define PROCESS_PER_MONITOR_DPI_AWARE 2 // 每显示器 DPI 感知
 #endif
 
-// 通用 DPI 感知函数原型
+// DPI 相关函数类型定义
 typedef BOOL(WINAPI* FnSetProcessDPIAware)(VOID);
 typedef HRESULT(WINAPI* FnSetProcessDpiAwareness)(int dpiAwareness);
 typedef HRESULT(WINAPI* FnGetDpiForMonitor)(HMONITOR hmonitor, int dpiType, UINT* dpiX, UINT* dpiY);
 
-// 帮助函数 - 启用 DPI 感知
+/**
+ * 启用 DPI 感知
+ * 优先使用 Windows 8.1+ API，失败后回退到旧版 API
+ * @return 是否成功启用 DPI 感知
+ */
 inline bool EnableDPIAwareness() {
     bool success = false;
 
@@ -95,7 +115,13 @@ inline bool EnableDPIAwareness() {
     return success;
 }
 
-// 获取显示器 DPI 帮助函数
+/**
+ * 获取窗口所在显示器的 DPI
+ * @param hwnd 窗口句柄
+ * @param dpiX 用于返回水平 DPI
+ * @param dpiY 用于返回垂直 DPI
+ * @return 是否成功获取 DPI
+ */
 inline bool GetMonitorDpiForWindow(HWND hwnd, UINT& dpiX, UINT& dpiY) {
     dpiX = dpiY = 96; // 默认 DPI
 
